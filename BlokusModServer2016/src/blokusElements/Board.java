@@ -286,7 +286,38 @@ public class Board {
         }
         return 0;
     }
-            
+    
+    //返り値；できたかできていないか
+    public int RewindPiece(int player,Piece piece,int x,int y){
+        int[][] pieceshape = piece.getPiecePattern();
+        int width = pieceshape[0].length;
+        int height = pieceshape.length;
+
+        try{
+            //ボード状態を書き換える
+            for(int i=0;i<width;i++){
+                for(int j=0;j<height;j++){
+                    if(pieceshape[j][i] == 1){
+                        this.boardState[y+j][x+i] = -1;
+                    }
+                }
+            }
+
+            //設置済みピースリストを更新する
+            ArrayList<String> list = this.PlayerPutPieces.get(player);
+            list.remove(piece.getPieceID());
+            this.PlayerPutPieces.set(player,list);
+
+        } catch(java.lang.ArrayIndexOutOfBoundsException e){
+            //e.printStackTrace();
+            return 0;
+        }
+
+        return this.canPutPiece(player, piece, x, y);
+
+    }
+    
+    
     public int[][] getBoardMatrix() {
         return this.boardState;
     }
