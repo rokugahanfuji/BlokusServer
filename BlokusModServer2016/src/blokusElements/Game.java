@@ -87,7 +87,7 @@ public class Game extends Observable{
     }
     
     public boolean rewind(int player,Piece piece,int x,int y){
-        if(this.CurrentPlayer == player){
+        if(this.CurrentPlayer != player){
             int putPiece = this.gameBoard.RewindPiece(player, piece, x, y);
             if(putPiece > 0){
                 int point = piece.getPieceCount() * putPiece;
@@ -103,7 +103,12 @@ public class Game extends Observable{
         return false;
     }
     
-    
+    public boolean AirPlay(int player){
+        this.changePlayer();
+        this.setChanged();
+        this.notifyObservers(this);
+        return true;
+    }
     
     /** パスした場合に呼び出される。投了になる */
     public boolean pass(int player){

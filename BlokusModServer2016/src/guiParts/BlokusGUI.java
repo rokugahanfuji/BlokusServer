@@ -101,8 +101,6 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
                 }
             }
         }
-        this.jPanel1.validate();
-        this.jPanel1.repaint();
         
         this.myLog = new Log();
         this.jLabel16.setText("PLAY MODE");
@@ -111,6 +109,8 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
         this.jLabel10.setText("0");
         this.jLabel8.setText("0");
         
+        this.jPanel1.validate();
+        this.jPanel1.repaint();
     }
     
     @Override
@@ -176,6 +176,7 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
         if(o1 instanceof String){
             this.messageDialog.addText((String)o1);
         }
+        this.repaint();
     }
     
     
@@ -503,9 +504,9 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
 
                 this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
                 this.jLabel10.setText(String.valueOf(this.myLog.getAllTurnCount()));
-                this.jButton1.setEnabled(true);
                 this.jButton2.setEnabled(true);
-                this.jLabel16.setText("ANALYZING MODE");
+                this.jButton1.setEnabled(false);
+                this.jLabel16.setText("ANALYZE MODE");
                 jLabel2.setText("ファイル読み込みに成功しました。");
             }else{
                 jLabel2.setText("ファイル読み込みに失敗しました。");
@@ -519,11 +520,19 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
         // TODO add your handling code here:
         ArrayList<String> list;
-        list = this.myLog.nextPut();
+        System.out.println(this.myLog.getTurnCount());
+        list = this.myLog.nextPut(this.myGame);
+        System.out.println(this.myLog.getTurnCount());
+        System.out.println(list);
+        System.out.println();
         
-        if(!list.get(0).equals("FAILED")){
+        if(this.myLog.getAllTurnCount() == this.myLog.getTurnCount()){            
+            this.jLabel8.setText(String.valueOf(this.myLog.getAllTurnCount()));
+            this.jButton1.setEnabled(false);
+        }else if(!list.get(0).equals("FAILED")){
             //成功時
             this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
+            this.jButton2.setEnabled(true);
         }else{
             //失敗時
             jLabel2.setText("これ以上進めません。");
@@ -533,11 +542,18 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
         // TODO add your handling code here:
         ArrayList<String> list;
-        list = this.myLog.prevPut();
-        
-        if(!list.get(0).equals("FAILED")){
+        System.out.println(this.myLog.getTurnCount());
+        list = this.myLog.prevPut(this.myGame);
+        System.out.println(this.myLog.getTurnCount());
+        System.out.println(list);
+        System.out.println();
+        if(list.get(0).equals("START")){
+            this.jLabel8.setText("S");
+            this.jButton2.setEnabled(false);
+        }else if(!list.get(0).equals("FAILED")){
             //成功時
             this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
+            this.jButton1.setEnabled(true);
         }else{
             //失敗時
             jLabel2.setText("これ以上戻れません。");

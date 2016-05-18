@@ -276,12 +276,11 @@ public class Board {
                 ArrayList<String> list = this.PlayerPutPieces.get(player);
                 list.add(piece.getPieceID());
                 this.PlayerPutPieces.set(player, list);
-                
             } catch(java.lang.ArrayIndexOutOfBoundsException e){
                 //e.printStackTrace();
                 return 0;
             }
-            
+
             return scount;
         }
         return 0;
@@ -312,7 +311,6 @@ public class Board {
             //e.printStackTrace();
             return 0;
         }
-
         return this.canPutPiece(player, piece, x, y);
 
     }

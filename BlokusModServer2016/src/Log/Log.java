@@ -7,17 +7,14 @@ package Log;
 
 import blokusElements.Game;
 import blokusElements.Piece;
-import java.awt.Point;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import jdk.nashorn.internal.ir.ReturnNode;
 
 /**
  *
@@ -62,35 +59,71 @@ public class Log {
     
     //
     public void logAnalyze(Game game){
+        game.setPlayerName(this.myPlayerID,this.myName);
+        game.setPlayerName(this.opPlayerID,"ENEMY");
         ArrayList<String> turn;
-        turn = this.PutList.get(0);
         
-        game.play(Integer.parseInt(turn.get(0)), new Piece(turn.get(3),Integer.parseInt(turn.get(4))), Integer.parseInt(turn.get(1)), Integer.parseInt(turn.get(2)));
+        for (int i = 0; i < maxSize; i++) {
+            turn = this.PutList.get(i);
+            if(!turn.get(1).equals("PASS")){
+                game.play(Integer.parseInt(turn.get(0)), new Piece(turn.get(3),Integer.parseInt(turn.get(4))), Integer.parseInt(turn.get(1)), Integer.parseInt(turn.get(2)));
+            }else{
+                game.AirPlay(Integer.parseInt(turn.get(0)));
+            }
+            
+        }
+        /*
+        turn = this.PutList.get(maxSize-1);
+        if(Integer.parseInt(turn.get(0)) == 1){
+            game.AirPlay(0);
+        }else{
+            game.AirPlay(1);
+        }
+        */
+        
         //0:playerID 1:x 2:y 3:PieceID 4:PieceDirection  
     }
     
-    public ArrayList nextPut(){
-        if(this.nowPut >= maxSize -1){
-            ArrayList<String> list = new ArrayList<String>();
-            list.add("FAILED");
-            System.out.println("これ以上進めません。");
-            return list;
+    public ArrayList nextPut(Game game){
+        if(this.nowPut == maxSize - 1){
+            ArrayList<String> turn = this.PutList.get(this.nowPut);
+            game.play(Integer.parseInt(turn.get(0)), new Piece(turn.get(3),Integer.parseInt(turn.get(4))), Integer.parseInt(turn.get(1)), Integer.parseInt(turn.get(2)));
+            ArrayList<String> re = new ArrayList();
+            re.add("END");
+            this.nowPut++;
+            return re;
         }
-        this.nowPut += 1;
-        System.out.println(this.nowPut);
-        return this.PutList.get(this.nowPut - 1);
+        ArrayList<String> turn = this.PutList.get(this.nowPut);
+        
+        if(!turn.get(1).equals("PASS")){
+            game.play(Integer.parseInt(turn.get(0)), new Piece(turn.get(3),Integer.parseInt(turn.get(4))), Integer.parseInt(turn.get(1)), Integer.parseInt(turn.get(2)));
+        }else{
+            game.AirPlay(Integer.parseInt(turn.get(0)));
+        }
+        this.nowPut++;
+       
+        return this.PutList.get(this.nowPut);
     }
     
-    public ArrayList prevPut(){
-        if(this.nowPut <= 0){
-            ArrayList<String> list = new ArrayList<String>();
-            list.add("FAILED");
-            System.out.println("これ以上戻れません。");
-            return list;
+    public ArrayList prevPut(Game game){
+        if(this.nowPut == 1){
+            ArrayList<String> turn = this.PutList.get(this.nowPut-1);
+            game.rewind(Integer.parseInt(turn.get(0)), new Piece(turn.get(3),Integer.parseInt(turn.get(4))), Integer.parseInt(turn.get(1)), Integer.parseInt(turn.get(2)));
+            ArrayList<String> re = new ArrayList();
+            re.add("START");
+            this.nowPut--;
+            return re;
         }
-        this.nowPut -= 1;
-        System.out.println(this.nowPut);
-        return this.PutList.get(this.nowPut + 1);
+        this.nowPut--;
+        ArrayList<String> turn = this.PutList.get(this.nowPut);
+        
+        if(!turn.get(1).equals("PASS")){
+            game.rewind(Integer.parseInt(turn.get(0)), new Piece(turn.get(3),Integer.parseInt(turn.get(4))), Integer.parseInt(turn.get(1)), Integer.parseInt(turn.get(2)));
+        }else{
+            game.AirPlay(Integer.parseInt(turn.get(0)));
+        }
+        
+        return this.PutList.get(this.nowPut);
     }
     
     //ログをセットし、パースまで行う
@@ -100,8 +133,18 @@ public class Log {
             //成功
             //配列の大きさを確認する
             this.maxSize = this.PutList.size();
-            this.nowPut = maxSize - 1;
+            ArrayList<String> turn = new ArrayList();
+            this.nowPut = maxSize;
+            turn = this.PutList.get(this.nowPut-1);
+            if(turn.get(1).equals("PASS")){
+                this.PutList.remove(this.nowPut-1);
+                maxSize -= 1;
+                this.nowPut -= 1;
+            }
+            System.out.println(this.PutList);
+            System.out.println("Put NUM :"+this.nowPut);
             System.out.println("Log Size:"+this.PutList.size());
+            
         }else{
             //失敗 エラー詳細つけるならここで
             return -1;
@@ -164,7 +207,7 @@ public class Log {
                 } 
             }
             br.close();
-            System.out.println(this.PutList);
+            
           }catch(FileNotFoundException e){
             System.out.println(e);
           }catch(IOException e){
@@ -177,10 +220,18 @@ public class Log {
     }     
     
     public int getTurnCount(){
-        return nowPut + 1;
+        return nowPut;
     }
     
     public int getAllTurnCount(){
         return maxSize;
+    }
+    
+    private int reversePlayerID(int ID){
+        if(ID == 0){
+            return 1;
+        }else{
+            return 0;
+        }
     }
 }
