@@ -12,12 +12,26 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Toolkit;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Observable;
 import java.util.Observer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import network.ServerThread;
 
 /**
@@ -35,6 +49,13 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
     private Game myGame;
     
     private Log myLog;
+    private int MODE;
+    private final int PLAY_MODE = 0;
+    private final int ANALYZE_MODE = 1;
+    private final int PLAY_END = 2;
+    private boolean syncLog;
+    private boolean actionFlag;
+    private LogInputDialog logInputDialog;
     
     public void setServerThread(ServerThread sth) {
         this.waitThread = sth;
@@ -108,7 +129,11 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
         this.jButton2.setEnabled(false);
         this.jLabel10.setText("0");
         this.jLabel8.setText("0");
-        
+        this.MODE = this.PLAY_MODE;
+        this.syncLog = false;
+        this.actionFlag = false;
+        this.jMenuItem3.setEnabled(false);
+                
         this.jPanel1.validate();
         this.jPanel1.repaint();
     }
@@ -140,6 +165,7 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
             if(gameboard.getCurrentPlayer() == -1){
                 //ゲーム終了
                 int[] scores = gameboard.getScore();
+                this.MODE = this.PLAY_END;
                 if(scores[0] > scores[1]){
                     this.jLabel13.setText("あなたの勝利です。");
                     this.jLabel7.setText("あなたの敗北です。");
@@ -213,12 +239,20 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
         resetAll = new javax.swing.JMenuItem();
+        jMenu3 = new javax.swing.JMenu();
+        jMenuItem4 = new javax.swing.JMenuItem();
         jMenuItem1 = new javax.swing.JMenuItem();
+        jMenuItem3 = new javax.swing.JMenuItem();
         jMenu2 = new javax.swing.JMenu();
         jMenuItem2 = new javax.swing.JMenuItem();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("BlokusMod Server 0.10  b160411");
+        addMouseWheelListener(new java.awt.event.MouseWheelListener() {
+            public void mouseWheelMoved(java.awt.event.MouseWheelEvent evt) {
+                formMouseWheelMoved(evt);
+            }
+        });
 
         jPanel1.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
 
@@ -372,15 +406,35 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
         });
         jMenu1.add(resetAll);
 
-        jMenuItem1.setText("logAnalyze");
+        jMenuBar1.add(jMenu1);
+
+        jMenu3.setText("Log");
+
+        jMenuItem4.setText("Analyze Snippet");
+        jMenuItem4.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem4ActionPerformed(evt);
+            }
+        });
+        jMenu3.add(jMenuItem4);
+
+        jMenuItem1.setText("Analyze txt File");
         jMenuItem1.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jMenuItem1ActionPerformed(evt);
             }
         });
-        jMenu1.add(jMenuItem1);
+        jMenu3.add(jMenuItem1);
 
-        jMenuBar1.add(jMenu1);
+        jMenuItem3.setText("Save As...");
+        jMenuItem3.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem3ActionPerformed(evt);
+            }
+        });
+        jMenu3.add(jMenuItem3);
+
+        jMenuBar1.add(jMenu3);
 
         jMenu2.setText("View");
 
@@ -495,71 +549,262 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
 
     private void jMenuItem1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem1ActionPerformed
         // TODO add your handling code here:
-        JFileChooser fileChooser = new JFileChooser();
+        if(this.MODE == this.ANALYZE_MODE || this.MODE == this.PLAY_END){
+            JFrame frame = new JFrame();
+            
+            int option = JOptionPane.showConfirmDialog(frame,"現在の盤面を廃棄してもよろしいですか？","ログ解析中",JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE);
+            if(option == JOptionPane.NO_OPTION){
+                return;
+            }
+
+            this.myGame.deleteObservers();
+            this.messageDialog.setVisible(false);
+            this.messageDialog = null;
+            this.init();
+            this.myGame = new Game();
+            this.myGame.addObserver(this);
+            
+            try {
+                if(this.waitThread != null){
+                    this.messageDialog.resetText();
+                    this.waitThread.resetAll(16041, this.myGame);
+                } else {
+                    ServerThread sth = new ServerThread(16041,this.myGame);
+                    sth.waitStart();
+                }
+                this.messageDialog.addText("リセットが完了しました。");
+            } catch (IOException ex) {
+                this.messageDialog.addText("リセットに失敗しました。");
+            }
+
+            }
         
-        int selected = fileChooser.showOpenDialog(this);
-        if (selected == JFileChooser.APPROVE_OPTION){
-            if(this.myLog.setLogFile(fileChooser.getSelectedFile()) == 0){
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setCurrentDirectory(new File(".").getAbsoluteFile());
+            
+            FileNameExtensionFilter filter = new FileNameExtensionFilter("テキストファイル(*.txt))", "txt");
+            fileChooser.addChoosableFileFilter(filter);
+            fileChooser.setFileFilter(filter);
+            
+            
+            int selected = fileChooser.showOpenDialog(this);
+            if (selected == JFileChooser.APPROVE_OPTION){
+                if(this.myLog.setLogFile(fileChooser.getSelectedFile()) == 0){
+                    this.myLog.logAnalyze(this.myGame);
+
+                    this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
+                    this.jLabel10.setText(String.valueOf(this.myLog.getAllTurnCount()));
+                    this.jButton2.setEnabled(true);
+                    this.jButton1.setEnabled(false);
+                    this.jMenuItem3.setEnabled(false);
+                    this.jLabel16.setText("ANALYZE MODE");
+                    this.MODE = this.ANALYZE_MODE;
+                    jLabel2.setText("ファイル読み込みに成功しました。");
+                }else{
+                    jLabel2.setText("ファイル読み込みに失敗しました。");
+                }
+            }
+        
+    }//GEN-LAST:event_jMenuItem1ActionPerformed
+
+    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+        // TODO add your handling code here:
+        this.nextAction();
+    }//GEN-LAST:event_jButton1ActionPerformed
+
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
+        // TODO add your handling code here:
+        this.prevAction();
+    }//GEN-LAST:event_jButton2ActionPerformed
+
+    private void formMouseWheelMoved(java.awt.event.MouseWheelEvent evt) {//GEN-FIRST:event_formMouseWheelMoved
+        // TODO add your handling code here:
+        if(this.MODE == this.ANALYZE_MODE && this.syncLog == false){
+            if(evt.getWheelRotation() > 0){
+                if(this.jButton1.isEnabled()){
+                    this.nextAction();
+                }
+            }else{
+                if(this.jButton2.isEnabled()){
+                    this.prevAction();
+                }
+            }
+        }
+    }//GEN-LAST:event_formMouseWheelMoved
+
+    private void jMenuItem3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem3ActionPerformed
+        // TODO add your handling code here:
+        String path = new File(".").getAbsoluteFile().getParent();
+        File nowFile = new File(path+"/log.txt");
+        File saveFile;
+        
+        try {
+            JFileChooser filechooser = new JFileChooser();
+            filechooser.setCurrentDirectory(new File(".").getAbsoluteFile());
+            
+            FileNameExtensionFilter filter = new FileNameExtensionFilter("テキストファイル(*.txt))", "txt");
+            filechooser.addChoosableFileFilter(filter);
+            filechooser.setFileFilter(filter);
+            filechooser.setDialogTitle("名前を付けて保存");
+
+            int selected = filechooser.showSaveDialog(this);
+            if (selected == JFileChooser.APPROVE_OPTION){
+                saveFile = new File(filechooser.getSelectedFile() + ".txt");
+            }else{
+                return;
+            }
+
+            try {
+                BlokusGUI.copyFile(nowFile, saveFile);
+            } catch (IOException ex) {
+                Logger.getLogger(BlokusGUI.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
+        } catch (SecurityException e) {
+            System.out.println("例外が発生しました。");
+            System.out.println(e);
+        } catch (NullPointerException e) {
+            System.out.println("例外が発生しました。");
+            System.out.println(e);
+        }
+    
+    }//GEN-LAST:event_jMenuItem3ActionPerformed
+
+    public static void copyFile(File in, File out) throws IOException {
+        FileChannel inChannel = new FileInputStream(in).getChannel();
+        FileChannel outChannel = new FileOutputStream(out).getChannel();
+        try {
+            inChannel.transferTo(0, inChannel.size(),outChannel);
+        } 
+        catch (IOException e) {
+            throw e;
+        }
+        finally {
+            if (inChannel != null) inChannel.close();
+            if (outChannel != null) outChannel.close();
+        }
+    }
+    
+    private void jMenuItem4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem4ActionPerformed
+        // TODO add your handling code here:
+        if(this.MODE == this.ANALYZE_MODE || this.MODE == this.PLAY_END){
+            JFrame frame = new JFrame();
+
+            int option = JOptionPane.showConfirmDialog(frame,"現在の盤面を廃棄してもよろしいですか？","ログ解析中",JOptionPane.YES_NO_OPTION,JOptionPane.WARNING_MESSAGE);
+            if(option == JOptionPane.NO_OPTION){
+                return;
+            }
+
+            this.myGame.deleteObservers();
+            this.messageDialog.setVisible(false);
+            this.messageDialog = null;
+            this.init();
+            this.myGame = new Game();
+            this.myGame.addObserver(this);
+            try {
+                if(this.waitThread != null){
+                    this.messageDialog.resetText();
+                    this.waitThread.resetAll(16041, this.myGame);
+                } else {
+                    ServerThread sth = new ServerThread(16041,this.myGame);
+                    sth.waitStart();
+                }
+                this.messageDialog.addText("リセットが完了しました。");
+            } catch (IOException ex) {
+                this.messageDialog.addText("リセットに失敗しました。");
+            }
+
+        }
+        this.logInputDialog = new LogInputDialog(this,true);
+        this.logInputDialog.setVisible(true);
+        
+        if(this.logInputDialog.getSelectedButton() == 0){
+            //出力先を作成する
+            String path = new File(".").getAbsoluteFile().getParent();
+            File file = new File(path+"/log.txt");
+
+            if(this.myLog.setLogFile(file) == 0){
                 this.myLog.logAnalyze(this.myGame);
 
                 this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
                 this.jLabel10.setText(String.valueOf(this.myLog.getAllTurnCount()));
                 this.jButton2.setEnabled(true);
                 this.jButton1.setEnabled(false);
+                this.jMenuItem3.setEnabled(true);
                 this.jLabel16.setText("ANALYZE MODE");
+                this.MODE = this.ANALYZE_MODE;
                 jLabel2.setText("ファイル読み込みに成功しました。");
             }else{
                 jLabel2.setText("ファイル読み込みに失敗しました。");
-                
             }
-            
         }
         
-    }//GEN-LAST:event_jMenuItem1ActionPerformed
+    }//GEN-LAST:event_jMenuItem4ActionPerformed
 
-    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+    
+    private void nextAction(){
         // TODO add your handling code here:
-        ArrayList<String> list;
-        System.out.println(this.myLog.getTurnCount());
-        list = this.myLog.nextPut(this.myGame);
-        System.out.println(this.myLog.getTurnCount());
-        System.out.println(list);
-        System.out.println();
+        if(this.actionFlag == true){
+            return;
+        }
+        this.actionFlag = true;
+        if(syncLog == false){
+            this.syncLog = true;
+            ArrayList<String> list;
+            //System.out.println(this.myLog.getTurnCount());
+            list = this.myLog.nextPut(this.myGame);
+            //System.out.println(this.myLog.getTurnCount());
+            //System.out.println(list);
+            //m.out.println();
+
+            if(this.myLog.getAllTurnCount() == this.myLog.getTurnCount()){            
+                this.jLabel8.setText(String.valueOf(this.myLog.getAllTurnCount()));
+                this.jButton1.setEnabled(false);
+            }else if(!list.get(0).equals("FAILED")){
+                //成功時
+                this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
+                this.jButton2.setEnabled(true);
+            }else{
+                //失敗時
+                jLabel2.setText("これ以上進めません。");
+            }
+            this.syncLog = false;
+        }
+        this.actionFlag = false;
+      
         
-        if(this.myLog.getAllTurnCount() == this.myLog.getTurnCount()){            
-            this.jLabel8.setText(String.valueOf(this.myLog.getAllTurnCount()));
-            this.jButton1.setEnabled(false);
-        }else if(!list.get(0).equals("FAILED")){
-            //成功時
-            this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
-            this.jButton2.setEnabled(true);
-        }else{
-            //失敗時
-            jLabel2.setText("これ以上進めません。");
-        }
-    }//GEN-LAST:event_jButton1ActionPerformed
-
-    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
+    }
+    
+    private void prevAction(){
         // TODO add your handling code here:
-        ArrayList<String> list;
-        System.out.println(this.myLog.getTurnCount());
-        list = this.myLog.prevPut(this.myGame);
-        System.out.println(this.myLog.getTurnCount());
-        System.out.println(list);
-        System.out.println();
-        if(list.get(0).equals("START")){
-            this.jLabel8.setText("S");
-            this.jButton2.setEnabled(false);
-        }else if(!list.get(0).equals("FAILED")){
-            //成功時
-            this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
-            this.jButton1.setEnabled(true);
-        }else{
-            //失敗時
-            jLabel2.setText("これ以上戻れません。");
+        if(this.actionFlag == true){
+            return;
         }
-    }//GEN-LAST:event_jButton2ActionPerformed
-
+        this.actionFlag = true;
+         if(syncLog == false){
+            this.syncLog = true;
+            ArrayList<String> list;
+            //System.out.println(this.myLog.getTurnCount());
+            list = this.myLog.prevPut(this.myGame);
+            //System.out.println(this.myLog.getTurnCount());
+            //System.out.println(list);
+            //System.out.println();
+            if(list.get(0).equals("START")){
+                this.jLabel8.setText("S");
+                this.jButton2.setEnabled(false);
+            }else if(!list.get(0).equals("FAILED")){
+                //成功時
+                this.jLabel8.setText(String.valueOf(this.myLog.getTurnCount()));
+                this.jButton1.setEnabled(true);
+            }else{
+                //失敗時
+                jLabel2.setText("これ以上戻れません。");
+            }
+            this.syncLog = false;
+         }
+         this.actionFlag = false;
+    }
+    
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton jButton1;
     private javax.swing.JButton jButton2;
@@ -581,9 +826,12 @@ public class BlokusGUI extends javax.swing.JFrame implements Observer {
     private javax.swing.JLabel jLabel9;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;
+    private javax.swing.JMenu jMenu3;
     private javax.swing.JMenuBar jMenuBar1;
     private javax.swing.JMenuItem jMenuItem1;
     private javax.swing.JMenuItem jMenuItem2;
+    private javax.swing.JMenuItem jMenuItem3;
+    private javax.swing.JMenuItem jMenuItem4;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JPanel jPanel3;
